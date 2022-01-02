@@ -6,9 +6,10 @@ import (
     "time"
 )
 
-
+// 窗口计数器
+// 表示每个窗口的请求数
 type WindowCounter struct {
-    WindowSize      int64   // 每个滑动窗口的大小(秒)
+    winSize         int64   // 每个滑动窗口的大小(秒)
     splitNum        int64   // 切分窗口的数目大小，每个窗口对应一个桶存储数据。
     currentBucket   int     // 当前的桶
     Limiter         int     // 滑动窗口内限流大小
@@ -18,7 +19,7 @@ type WindowCounter struct {
 
 func New(size int64, limit int, splitNum int64) *WindowCounter {
     return &WindowCounter{
-        WindowSize:     size,
+        winSize:        size,
         Limiter:        limit,
         splitNum:       splitNum,
         currentBucket:  0,
@@ -27,28 +28,28 @@ func New(size int64, limit int, splitNum int64) *WindowCounter {
     }
 }
 
-func (c *WindowCounter) TryAcquire() bool {
+// return false 开始限流
+func (c *WindowCounter) TryLimiter() bool {
     currentTime     := time.Now().Unix()
 
     // 计算请求时间是否大于当前滑动窗口的最大时间
     // 算出当前时间和开始时间减去窗口大小的值，作用为计算超出当前滑动窗口的时间
-    t               := currentTime - c.WindowSize - c.StartTime
+    t               := currentTime - c.winSize - c.StartTime
     // 如果小于或等于0则代表未超出当前滑动窗口的时间。
     if t < 0 {
         t = 0
     }
     // 用t除以滑动窗口的份数，计算出需要滑动的数量。
-    windowsNum      := t / (c.WindowSize / c.splitNum)
+    windowsNum      := t / (c.winSize / c.splitNum)
     c.slideWindow(windowsNum)
-    count := 0
+    countLimiter    := 0
     for i := 0; i < int(c.splitNum); i++ {
-        count       += c.Bucket[i]
+        countLimiter += c.Bucket[i]
     }
     
-    log.Printf("当前滑动窗口总数为: %d", count)
-    if count > c.Limiter {
-        log.Println("开始限流")
-        return false
+    log.Printf("当前滑动窗口countLimiter: %d, Limiter: %d", countLimiter, c.Limiter)
+    if countLimiter > c.Limiter {
+        return false // 开始限流
     }
 
     index := c.GetCurrentBucket()
@@ -58,7 +59,7 @@ func (c *WindowCounter) TryAcquire() bool {
 }
 
 func (c *WindowCounter) GetCurrentBucket() int {
-    return int(time.Now().Unix() / (c.WindowSize / c.splitNum) % c.splitNum)
+    return int(time.Now().Unix() / (c.winSize / c.splitNum) % c.splitNum)
 }
 
 func (c *WindowCounter) slideWindow(windowsNum int64)  {
@@ -77,15 +78,15 @@ func (c *WindowCounter) slideWindow(windowsNum int64)  {
         // 根据splitNum取余，获取当前的bucket
         
         c.currentBucket = (c.currentBucket +1) % int(c.splitNum)
-        log.Printf("当前清空的位置: %d, 当前的大小: %d",c.currentBucket, c.Bucket[c.currentBucket])
+        log.Printf("当前桶的位置: %d, 大小为: %d",c.currentBucket, c.Bucket[c.currentBucket])
         c.Bucket[c.currentBucket] = 0
     }
-    c.StartTime = c.StartTime + windowsNum * (c.WindowSize / c.splitNum)
+    c.StartTime = c.StartTime + windowsNum * (c.winSize / c.splitNum)
 }
 
 func main()  {
-    c           := New(10, 5, 5)
-    c.TryAcquire()
+    c           := New(10, 20, 5)
+    c.TryLimiter()
 
     wg          := sync.WaitGroup{}
     wg.Add(1)
@@ -93,28 +94,26 @@ func main()  {
         defer func() {
             wg.Done()
         }()
-        for i:=0; i<= 100; i++ {
+        for i:=0; i <= 100; i++ {
             for j:=0; j<1; j++ {
-                if c.TryAcquire() {
+                if c.TryLimiter() {
 
                 }
             }
-            // time.Sleep(time.Millisecond * 1429)
-            time.Sleep(time.Second *6)
+            time.Sleep(time.Millisecond * 100)
         }
     }()
     go func() {
         defer func() {
             wg.Done()
         }()
-        for i:=0; i<= 100; i++ {
+        for i:=0; i <= 100; i++ {
             for j:=0; j<1; j++ {
-                if c.TryAcquire() {
+                if c.TryLimiter() {
 
                 }
             }
-            time.Sleep(time.Millisecond * 1900)
-            // time.Sleep(time.Second *6)
+            time.Sleep(time.Millisecond * 500)
         }
     }()
     wg.Wait()
