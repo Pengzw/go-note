@@ -30,59 +30,35 @@ func Every(interval time.Duration) Limit {
 	return 1 / Limit(interval.Seconds())
 }
 
-// A Limiter controls how frequently events are allowed to happen.
-// It implements a "token bucket" of size b, initially full and refilled
-// at rate r tokens per second.
-// Informally, in any large enough time interval, the Limiter limits the
-// rate to r tokens per second, with a maximum burst size of b events.
-// As a special case, if r == Inf (the infinite rate), b is ignored.
-// See https://en.wikipedia.org/wiki/Token_bucket for more about token buckets.
+// 限制器控制允许事件发生的频率。
+// 它实现了一个大小为b的“令牌桶”，最初是满的，并以每秒r个令牌的速率重新填充。
+// 非正式地说，在任何足够大的时间间隔内，限制器将速率限制为每秒r个令牌，最大突发大小为b个事件。
+// 作为特例, if r == Inf (无限速率), b可忽略.
+// 见 https://en.wikipedia.org/wiki/Token_bucket 有关令牌桶的更多信息.
 //
-// The zero value is a valid Limiter, but it will reject all events.
-// Use NewLimiter to create non-zero Limiters.
+// 设置0是有效的限制器，但它将拒绝所有事件。
+// 使用NewLimiter创建非0的限制器。
 //
-// Limiter has three main methods, Allow, Reserve, and Wait.
-// Most callers should use Wait.
+// 限制器有三种主要方法, Allow, Reserve, and Wait.
+// 对于大多数人而言应该使用 Wait.
 //
-// Each of the three methods consumes a single token.
-// They differ in their behavior when no token is available.
-// If no token is available, Allow returns false.
-// If no token is available, Reserve returns a reservation for a future token
-// and the amount of time the caller must wait before using it.
-// If no token is available, Wait blocks until one can be obtained
-// or its associated context.Context is canceled.
-//
-// The methods AllowN, ReserveN, and WaitN consume n tokens.
+// 这三种方法中的每一种都使用一个令牌。
+// 当没有令牌可用时，它们的行为会有所不同。
+// 如果没有可用的令牌，Allow返回false。
+// 如果没有可用的令牌，Reserve将返回对未来令牌的保留以及调用方在使用它之前必须等待的时间。
+// 如果没有可用的令牌，则Wait blocks直到可以获得一个令牌或其关联的上下文。上下文被取消。
+// 
+// AllowN、ReserveN和WaitN方法使用n个令牌。
 type Limiter struct {
-	mu     sync.Mutex
-	limit  Limit
-	burst  int
-	tokens float64
-	// last is the last time the limiter's tokens field was updated
-	last time.Time
-	// lastEvent is the latest time of a rate-limited event (past or future)
-	lastEvent time.Time
+	mu     sync.Mutex 	// 互斥锁
+	limit  Limit 		// 每秒产生 token 的速度, 其实是 float64 的一个别名
+	burst  int 			// 桶的大小
+	tokens float64 		// 当前时间节点拥有的 tokens 数量
+	last time.Time 		// 上次更新 token 的时间
+	lastEvent time.Time // 上次限速的时间，这个时间可能是过去的某个时间也可能是将来的某个时间
 }
 
-// Limit returns the maximum overall event rate.
-func (lim *Limiter) Limit() Limit {
-	lim.mu.Lock()
-	defer lim.mu.Unlock()
-	return lim.limit
-}
-
-// Burst returns the maximum burst size. Burst is the maximum number of tokens
-// that can be consumed in a single call to Allow, Reserve, or Wait, so higher
-// Burst values allow more events to happen at once.
-// A zero Burst allows no events, unless limit == Inf.
-func (lim *Limiter) Burst() int {
-	lim.mu.Lock()
-	defer lim.mu.Unlock()
-	return lim.burst
-}
-
-// NewLimiter returns a new Limiter that allows events up to rate r and permits
-// bursts of at most b tokens.
+// NewLimiter返回一个新的限制器，该限制器允许事件速率达到r，并允许最多b个令牌的突发。
 func NewLimiter(r Limit, b int) *Limiter {
 	return &Limiter{
 		limit: r,
@@ -90,7 +66,25 @@ func NewLimiter(r Limit, b int) *Limiter {
 	}
 }
 
-// Allow is shorthand for AllowN(time.Now(), 1).
+// Limit返回最大总事件率。
+func (lim *Limiter) Limit() Limit {
+	lim.mu.Lock()
+	defer lim.mu.Unlock()
+	return lim.limit
+}
+
+// Burst 返回最大突发大小。
+// Burst是Allow, Reserve, or Wait的单个调用中可以使用的最大令牌数，
+// 因此较高的Burst值允许同时发生更多事件。
+// 
+// 0突发不允许任何事件，除非limit==Inf。
+func (lim *Limiter) Burst() int {
+	lim.mu.Lock()
+	defer lim.mu.Unlock()
+	return lim.burst
+}
+
+// Allow 是 AllowN(time.Now(), 1) 的缩写.
 func (lim *Limiter) Allow() bool {
 	return lim.AllowN(time.Now(), 1)
 }
@@ -102,14 +96,14 @@ func (lim *Limiter) AllowN(now time.Time, n int) bool {
 	return lim.reserveN(now, n, 0).ok
 }
 
-// A Reservation holds information about events that are permitted by a Limiter to happen after a delay.
-// A Reservation may be canceled, which may enable the Limiter to permit additional events.
+// Reservation 保存有关限制器允许在延迟后发生的事件的信息。
+// Reservation 可以取消，这可能使限制器允许其他事件。
 type Reservation struct {
-	ok        bool
+	ok        bool 		// 是否能预约上
 	lim       *Limiter
-	tokens    int
-	timeToAct time.Time
-	// This is the Limit at reservation time, it can change later.
+	tokens    int 		// 预约的 token 数量
+	timeToAct time.Time // token 实际使用的时间
+	// 保存一下速率，因为 lim 的速率是可以被动态调整的，所以不能直接用
 	limit Limit
 }
 
@@ -230,24 +224,24 @@ func (lim *Limiter) WaitN(ctx context.Context, n int) (err error) {
 	if n > burst && limit != Inf {
 		return fmt.Errorf("rate: Wait(n=%d) exceeds limiter's burst %d", n, burst)
 	}
-	// Check if ctx is already cancelled
+	// 检查ctx是否已取消
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
 	}
-	// Determine wait limit
+	// 确定等待限制
 	now := time.Now()
 	waitLimit := InfDuration
 	if deadline, ok := ctx.Deadline(); ok {
 		waitLimit = deadline.Sub(now)
 	}
-	// Reserve
+	// 保留
 	r := lim.reserveN(now, n, waitLimit)
 	if !r.ok {
 		return fmt.Errorf("rate: Wait(n=%d) would exceed context deadline", n)
 	}
-	// Wait if necessary
+	// 如有必要，请稍候
 	delay := r.DelayFrom(now)
 	if delay == 0 {
 		return nil
@@ -256,7 +250,7 @@ func (lim *Limiter) WaitN(ctx context.Context, n int) (err error) {
 	defer t.Stop()
 	select {
 	case <-t.C:
-		// We can proceed.
+		// 可继续处理.
 		return nil
 	case <-ctx.Done():
 		// Context was canceled before we could proceed.  Cancel the
@@ -309,6 +303,7 @@ func (lim *Limiter) reserveN(now time.Time, n int, maxFutureReserve time.Duratio
 	lim.mu.Lock()
 	defer lim.mu.Unlock()
 
+	// 如果发放令牌的速度无穷大的话，那么直接返回就行了，要多少可以给多少
 	if lim.limit == Inf {
 		return Reservation{
 			ok:        true,
@@ -330,21 +325,23 @@ func (lim *Limiter) reserveN(now time.Time, n int, maxFutureReserve time.Duratio
 		}
 	}
 
+	// advance 方法会去计算当前有多少个 token
+    // 后面会讲到，now 其实就是传入的时间，但是 last 可能会变
 	now, last, tokens := lim.advance(now)
 
-	// Calculate the remaining number of tokens resulting from the request.
+	// 计算请求产生的剩余令牌数。
 	tokens -= float64(n)
 
-	// Calculate the wait duration
+	// 计算等待时间
 	var waitDuration time.Duration
 	if tokens < 0 {
 		waitDuration = lim.limit.durationFromTokens(-tokens)
 	}
 
-	// Decide result
+	// 决定结果
 	ok := n <= lim.burst && waitDuration <= maxFutureReserve
 
-	// Prepare reservation
+	// 准备预订
 	r := Reservation{
 		ok:    ok,
 		lim:   lim,
@@ -367,8 +364,8 @@ func (lim *Limiter) reserveN(now time.Time, n int, maxFutureReserve time.Duratio
 	return r
 }
 
-// advance calculates and returns an updated state for lim resulting from the passage of time.
-// lim is not changed.
+// advance计算并返回因时间推移而产生的lim的更新状态。
+// lim没有改变.
 // advance requires that lim.mu is held.
 func (lim *Limiter) advance(now time.Time) (newNow time.Time, newLast time.Time, newTokens float64) {
 	last := lim.last
@@ -376,7 +373,7 @@ func (lim *Limiter) advance(now time.Time) (newNow time.Time, newLast time.Time,
 		last = now
 	}
 
-	// Calculate the new number of tokens, due to time that passed.
+	// 根据经过的时间计算新的令牌数。
 	elapsed := now.Sub(last)
 	delta := lim.limit.tokensFromDuration(elapsed)
 	tokens := lim.tokens + delta
@@ -386,8 +383,7 @@ func (lim *Limiter) advance(now time.Time) (newNow time.Time, newLast time.Time,
 	return now, last, tokens
 }
 
-// durationFromTokens is a unit conversion function from the number of tokens to the duration
-// of time it takes to accumulate them at a rate of limit tokens per second.
+// durationFromTokens是从令牌数到持续时间的单位转换函数以每秒限制令牌的速率累积它们所需的时间。
 func (limit Limit) durationFromTokens(tokens float64) time.Duration {
 	if limit <= 0 {
 		return InfDuration
