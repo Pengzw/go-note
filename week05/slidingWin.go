@@ -8,12 +8,12 @@ import (
 
 
 type counterSlidingWindow struct {
-  windowSize int64 //整个滑动窗口的大小，单位秒
-  splitNum int64 // 切分窗口的数目大小，每个窗口对应一个桶存储数据。
+  windowSize int64  // 整个滑动窗口的大小，单位秒
+  splitNum int64    // 切分窗口的数目大小，每个窗口对应一个桶存储数据。
   currentBucket int // 当前的桶
-  limit int // 滑动窗口内限流大小
-  Bucket []int // 存放每个窗口内的计数
-  startTime int64 // 滑动窗口开始时间
+  limit int         // 滑动窗口内限流大小
+  Bucket []int      // 存放每个窗口内的计数
+  startTime int64   // 滑动窗口开始时间
 }
 
 func NewSlidingWindow(windowSize int64, limit int, splitNum int64) *counterSlidingWindow {
