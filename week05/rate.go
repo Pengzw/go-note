@@ -352,12 +352,13 @@ func (lim *Limiter) reserveN(now time.Time, n int, maxFutureReserve time.Duratio
 		r.timeToAct = now.Add(waitDuration)
 	}
 
-	// Update state
+	// 更新各个字段的状态
 	if ok {
 		lim.last = now
 		lim.tokens = tokens
 		lim.lastEvent = r.timeToAct
 	} else {
+		// 为什么不 ok 也要更新 last 呢？因为 last 可能会改变
 		lim.last = last
 	}
 
@@ -370,6 +371,7 @@ func (lim *Limiter) reserveN(now time.Time, n int, maxFutureReserve time.Duratio
 func (lim *Limiter) advance(now time.Time) (newNow time.Time, newLast time.Time, newTokens float64) {
 	last := lim.last
 	if now.Before(last) {
+		// 如果当前时间比上次更新 token 的时间还要早，那么就重置一下 last
 		last = now
 	}
 
