@@ -111,7 +111,7 @@ func main()  {
                 log.Printf("request: %s \n", err)
                 // do something
             }
-            time.Sleep(time.Millisecond * 500)
+            time.Sleep(time.Millisecond * 333)
         }
     }()
     wg.Wait()
