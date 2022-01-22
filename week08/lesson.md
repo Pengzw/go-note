@@ -23,7 +23,7 @@ redis-benchmark -h {IP} -p {Port} -a {password} -n {nreqs} -r {randomkeys} -c {c
 ```
 
 
-##### 10 字节压测(10w次请求)
+#### 10 字节压测(10w次请求)
 
 ```
 [root@centos7 bin]# ./redis-benchmark -h 127.0.0.1 -p 6379 -c 200 -n 100000 -t get,set -r 1000000 -d 10
@@ -50,7 +50,7 @@ redis-benchmark -h {IP} -p {Port} -a {password} -n {nreqs} -r {randomkeys} -c {c
 ```
 
 
-##### 10 字节压测(100w次请求)
+#### 10 字节压测(100w次请求)
 ```
 [root@centos7 bin]# ./redis-benchmark -h 127.0.0.1 -p 6379 -c 200 -n 1000000 -t get,set -r 1000000 -d 10
 ====== SET ======
@@ -76,7 +76,7 @@ redis-benchmark -h {IP} -p {Port} -a {password} -n {nreqs} -r {randomkeys} -c {c
 ```
 
 
-##### 1k字节压测(10w次请求)
+#### 1k字节压测(10w次请求)
 ```
 [root@centos7 bin]# ./redis-benchmark -h 127.0.0.1 -p 6379 -c 200 -n 100000 -t get,set -r 1000000 -d 1024
 ====== SET ======
@@ -100,7 +100,7 @@ redis-benchmark -h {IP} -p {Port} -a {password} -n {nreqs} -r {randomkeys} -c {c
 78554.59 requests per second
 ```
 
-##### 5k字节压测(10w次请求)
+#### 5k字节压测(10w次请求)
 ```
 [root@centos7 bin]# ./redis-benchmark -h 127.0.0.1 -p 6379 -c 200 -n 100000 -t get,set -r 1000000 -d 5120
 ====== SET ======
@@ -125,13 +125,13 @@ redis-benchmark -h {IP} -p {Port} -a {password} -n {nreqs} -r {randomkeys} -c {c
 
 ```
 
-##### 压测总结
+#### 压测总结
 经压测得, redis 读写基本能维持在每秒7~8s的并发数. 但是当key的数据量越大超过1k后, 很明显能看到redis的吞吐量急速下滑
 
 
 ### info 查看
 
-##### flushdb 之后
+#### flushdb 之后
 ```
 # Memory
 used_memory:1412792
@@ -177,7 +177,7 @@ lazyfree_pending_objects:0
 
 ```
 
-##### 插入10w条1k
+#### 插入10w条1k
 - 用命令行插入1w数据
     - ./redis-benchmark -h 127.0.0.1 -p 6379 -c 200 -n 100000 -t set -r 10000 -d 1024
     - ./redis-benchmark -h 127.0.0.1 -p 6379 -c 200 -n 100000 -t set -r 1000 -d 10
@@ -227,8 +227,8 @@ lazyfree_pending_objects:0
 ```
 
 当redis被用作缓存时，有时我们希望了解key的大小分布，或者想知道哪些key占的空间比较大
-
-##### bigKeys
+### 分析工具
+#### bigKeys
 这是redis-cli自带的一个命令。对整个redis进行扫描，寻找较大的key
 ```
 ./redis-cli --bigkeys
@@ -262,7 +262,7 @@ Biggest string found 'key:000000005975' has 1024 bytes
 - 输出大概分为两部分，summary之上的部分，只是显示了扫描的过程。summary部分给出了每种数据结构中最大的Key。
 - 统计出的最大key只有string类型是以字节长度为衡量标准的。list,set,zset等都是以元素个数作为衡量标准，不能说明其占的内存就一定多。所以，如果你的Key主要以string类型存在，这种方法就比较适合。
 
-##### debug object key
+#### debug object key
 redis的命令，可以查看某个key序列化后的长度。
 
 ```
