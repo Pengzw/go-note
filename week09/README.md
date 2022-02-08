@@ -188,7 +188,7 @@ for i := 0; i < 20; i++ {
 ## 为什么UDP不存在粘包问题
 UDP不存在粘包问题，是由于UDP发送的时候，没有经过Negal算法优化，不会将多个小包合并一次发送出去。另外，在UDP协议的接收端，采用了链式结构来记录每一个到达的UDP包，这样接收端应用程序一次recv只能从socket接收缓冲区中读出一个数据包。也就是说，发送端send了几次，接收端必须recv几次（无论recv时指定了多大的缓冲区）
 
-## 总结几种 socket 粘包的解包方式：fix length/delimiter based/length field based frame decoder。尝试举例其应用。
+## 总结几种 socket 粘包的解包方式：
 
 1. fix length
     消息定长
